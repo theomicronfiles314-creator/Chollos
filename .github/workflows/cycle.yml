@@ -1,0 +1,45 @@
+name: Ciclo del bot de chollos
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {} # permite lanzarlo a mano desde la pestaña Actions, para probar
+
+# Evita que se solapen dos ciclos si uno tarda más de 15 min: el siguiente
+# se pone en cola en vez de arrancar en paralelo (equivalente al flock que
+# usamos en la VPS / al MultipleInstances=IgnoreNew de Windows).
+concurrency:
+  group: wallapop-chollos-cycle
+  cancel-in-progress: false
+
+permissions:
+  contents: write # necesario para poder hacer commit de data/wallapop.db
+
+jobs:
+  run-cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12 # deja margen para que no choque con el siguiente disparo a los 15 min
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar un ciclo
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m src.main --once
+
+      - name: Guardar histórico actualizado
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/wallapop.db
+          git diff --staged --quiet || git commit -m "Actualiza histórico de precios [skip ci]"
+          git push

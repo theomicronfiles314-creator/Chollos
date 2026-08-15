@@ -1,0 +1,139 @@
+# Configuración editable del bot de chollos de Wallapop.
+# Añade/edita entradas en "searches" para vigilar nuevas búsquedas.
+#
+# NOTA: la lista de búsquedas de "flipping" (electrónica, coleccionables...)
+# se guardó en searches_flip_backup.yaml antes de sustituirla por esta
+# búsqueda de furgoneta adaptada. Para volver a ella, copia su contenido
+# aquí de nuevo.
+
+settings:
+  # Ubicación de referencia para las búsquedas (Wallapop la usa para ordenar/filtrar por cercanía)
+  latitude: 40.4168
+  longitude: -3.7038
+
+  # Cada cuántos minutos se ejecuta un ciclo completo de todas las búsquedas
+  interval_minutes: 15
+
+  # Un anuncio se marca como "chollo" si su precio está X% (o más) por debajo
+  # de la mediana histórica de su tipo de producto (aquí: de su franja de
+  # años, ver src/normalizer.py)
+  discount_threshold_pct: 20
+
+  # Percentil de referencia para el precio "normal" (50 = mediana, 25 = percentil 25)
+  price_percentile: 50
+
+  # Mínimo de anuncios históricos de la misma franja de años necesarios
+  # para calcular un precio de referencia fiable. Más bajo que en la config
+  # de flipping porque "furgoneta adaptada" es una búsqueda de bajo volumen
+  # (pocas decenas de anuncios en total, no miles).
+  min_samples_for_reference: 4
+
+  # Máximo de páginas (40 anuncios/página) a recorrer por búsqueda en cada ciclo
+  max_pages_per_search: 3
+
+  # Rango de espera aleatoria (segundos) entre peticiones, para no ser agresivos
+  request_delay_range: [2, 5]
+
+  # Umbrales de "rareza" del chollo, según el % de descuento sobre la
+  # mediana de su franja de años.
+  #   < rarity_raro_pct           -> ⚪ Común
+  #   >= rarity_raro_pct          -> 🔵 Raro
+  #   >= rarity_epico_pct         -> 🟣 Épico
+  #   >= rarity_legendario_pct    -> 🟡 Legendario
+  rarity_raro_pct: 30
+  rarity_epico_pct: 40
+  rarity_legendario_pct: 55
+
+  # Histórico a considerar para la mediana de cada franja de años. Más
+  # largo que en la config de flipping: al ser una categoría de poco
+  # volumen, hace falta más tiempo para acumular suficientes muestras.
+  reference_window_days: 180
+
+  concurrent_searches: 3
+  circuit_breaker_failures: 5
+
+  # Manda un mensaje a Telegram al terminar CADA ciclo (haya chollos o no)
+  # con un resumen: búsquedas hechas, anuncios nuevos, chollos, duración.
+  heartbeat_enabled: true
+
+  # Para una furgoneta de varios miles de euros, 8€ de margen mínimo no
+  # significa nada — subido a un umbral realista para este tipo de compra.
+  min_margin_eur: 500
+
+  # Descuentos por encima de este % son más probables de ser un error de
+  # precio (p.ej. cuota de financiación mal etiquetada como precio) que un
+  # chollo real de tantos miles de euros de diferencia.
+  scam_discount_threshold_pct: 70
+
+  # Si el histórico de precios de una franja de años está muy disperso, la
+  # mediana no es fiable — no se marca como chollo.
+  max_reference_cv: 0.6
+
+  # Comprobación de vendedor: cuenta nueva + sin valoraciones + mala nota
+  # media es una señal de alarma razonable, más aún tratándose de la compra
+  # de un vehículo (dinero serio en juego).
+  seller_trust_check_enabled: true
+  seller_min_account_age_days: 14
+  seller_min_reviews: 1
+  seller_min_avg_rating: 3.5
+
+searches:
+  # "source" indica qué plataforma usar: wallapop (por defecto), milanuncios
+  # o autoscout24. Cada una tiene su propio cliente en src/*_client.py.
+  # Todas comparten el mismo agrupamiento por franja de años y el mismo
+  # filtro de "¿de verdad menciona adaptación/PMR/discapacidad?" (ver
+  # src/trust.py), así que sus anuncios se comparan juntos en la misma
+  # mediana — más plataformas = histórico más rico y fiable.
+
+  # --- Wallapop ---
+  # category_id: 100 = Cars en Wallapop (incluye furgonetas). min_year y
+  # max_km usan los filtros reales de la ficha de coche (comprobado contra
+  # la API), no solo palabras clave — bastante más fiable.
+  - name: wallapop_furgoneta_adaptada
+    source: wallapop
+    keywords: "furgoneta adaptada"
+    category_id: 100
+    min_year: 2010
+    max_km: 200000
+
+  - name: wallapop_furgoneta_rampa_movilidad
+    source: wallapop
+    keywords: "furgoneta rampa movilidad reducida"
+    category_id: 100
+    min_year: 2010
+    max_km: 200000
+
+  - name: wallapop_furgoneta_discapacitados
+    source: wallapop
+    keywords: "furgoneta discapacitados silla de ruedas"
+    category_id: 100
+    min_year: 2010
+    max_km: 200000
+
+  - name: wallapop_furgoneta_pmr
+    source: wallapop
+    keywords: "furgoneta PMR adaptada"
+    category_id: 100
+    min_year: 2010
+    max_km: 200000
+
+  # --- Milanuncios ---
+  # Sin filtros de año/km propios (el sitio no los expone por URL de forma
+  # sencilla); el propio texto de búsqueda + el filtro de adaptación
+  # confirmada hacen la mayor parte del trabajo.
+  - name: milanuncios_furgoneta_adaptada
+    source: milanuncios
+    keywords: "furgoneta adaptada"
+
+  - name: milanuncios_furgoneta_pmr
+    source: milanuncios
+    keywords: "furgoneta PMR discapacitados"
+
+  # --- AutoScout24 ---
+  # No filtra por texto libre (comprobado): trae TODAS las furgonetas
+  # (carrocería body=13) y es nuestro propio filtro de adaptación
+  # confirmada el que decide cuáles son relevantes. "keywords" se ignora,
+  # se deja solo para que el nombre del log sea descriptivo.
+  - name: autoscout24_furgonetas
+    source: autoscout24
+    keywords: "furgoneta"

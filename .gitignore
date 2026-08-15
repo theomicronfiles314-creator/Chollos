@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+logs/
+# data/wallapop.db SÍ se versiona a propósito: en GitHub Actions cada
+# ejecución arranca en una máquina vacía, así que el propio workflow hace
+# commit de la base de datos actualizada al final de cada ciclo para que
+# el histórico de precios persista entre ejecuciones.

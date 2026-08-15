@@ -1,0 +1,182 @@
+# Configuración editable del bot de chollos de Wallapop.
+# Añade/edita entradas en "searches" para vigilar nuevas búsquedas.
+
+settings:
+  # Ubicación de referencia para las búsquedas (Wallapop la usa para ordenar/filtrar por cercanía)
+  latitude: 40.4168
+  longitude: -3.7038
+
+  # Cada cuántos minutos se ejecuta un ciclo completo de todas las búsquedas
+  interval_minutes: 15
+
+  # Un anuncio se marca como "chollo" si su precio está X% (o más) por debajo
+  # de la mediana histórica de su tipo de producto
+  discount_threshold_pct: 30
+
+  # Percentil de referencia para el precio "normal" (50 = mediana, 25 = percentil 25)
+  price_percentile: 50
+
+  # Mínimo de anuncios históricos del mismo tipo de producto necesarios
+  # para calcular un precio de referencia fiable
+  min_samples_for_reference: 5
+
+  # Máximo de páginas (40 anuncios/página) a recorrer por búsqueda en cada ciclo
+  max_pages_per_search: 3
+
+  # Rango de espera aleatoria (segundos) entre peticiones, para no ser agresivos
+  request_delay_range: [2, 5]
+
+  # Umbrales de "rareza" del chollo, según el % de descuento sobre la
+  # mediana. Solo son cosméticos (no cambian si se notifica o no, eso lo
+  # decide discount_threshold_pct de arriba): sirven para distinguir de un
+  # vistazo si una ganga es normalita o excepcional.
+  #   < rarity_raro_pct           -> ⚪ Común
+  #   >= rarity_raro_pct          -> 🔵 Raro
+  #   >= rarity_epico_pct         -> 🟣 Épico
+  #   >= rarity_legendario_pct    -> 🟡 Legendario
+  rarity_raro_pct: 45
+  rarity_epico_pct: 60
+  rarity_legendario_pct: 75
+
+  # Solo se usan anuncios de los últimos N días para calcular la mediana de
+  # cada tipo de producto. Sin esto, un anuncio guardado hace 6 meses (a lo
+  # mejor con un precio ya desfasado) pesaría igual que uno de ayer.
+  reference_window_days: 60
+
+  # Cuántas búsquedas se ejecutan en paralelo por ciclo. Más alto = ciclo
+  # más rápido, pero también más peticiones simultáneas a Wallapop —no
+  # subir mucho de 3-4 para seguir siendo educados.
+  concurrent_searches: 3
+
+  # Si esta cantidad de búsquedas seguidas fallan en el mismo ciclo (señal
+  # de bloqueo de IP o caída de la API), se cancelan las búsquedas
+  # restantes del ciclo en vez de insistir contra un muro.
+  circuit_breaker_failures: 5
+
+  # Manda un mensaje a Telegram al terminar CADA ciclo (haya chollos o no)
+  # con un resumen: búsquedas hechas, anuncios nuevos, chollos, duración.
+  # Así se distingue "no ha habido chollos" de "el bot no está corriendo".
+  # Ponlo a false si te resulta demasiado ruido (con 15 min de intervalo
+  # son ~96 mensajes al día).
+  heartbeat_enabled: true
+
+  # Un chollo debe suponer al menos esta cantidad de margen absoluto, no
+  # solo un % bonito. Un 60% de descuento en algo de 5€ no vale ni el
+  # tiempo de mirarlo; esto filtra ese ruido.
+  min_margin_eur: 8
+
+  # Descuentos por encima de este % son estadísticamente más probables de
+  # ser un error de precio, una estafa o un artículo robado que un chollo
+  # real. No se descarta la alerta (podría ser real), pero se marca con
+  # aviso en vez de darle bombo sin más.
+  scam_discount_threshold_pct: 85
+
+  # Si el histórico de precios de un tipo de producto está muy disperso
+  # (coeficiente de variación = desviación típica / media), la mediana no
+  # es fiable — probablemente el agrupamiento por texto ha mezclado cosas
+  # distintas. En ese caso NO se marca como chollo, aunque el % diera para
+  # ello: mejor no avisar que avisar mal.
+  max_reference_cv: 0.6
+
+  # Comprobación de vendedor (cuenta nueva + sin valoraciones + mala nota
+  # media = señal de alarma clásica en marketplaces). Solo se consulta para
+  # anuncios que YA pasaron el filtro de precio (pocos por ciclo), añade 2
+  # peticiones extra por cada uno.
+  seller_trust_check_enabled: true
+  seller_min_account_age_days: 14
+  seller_min_reviews: 1
+  seller_min_avg_rating: 3.5
+
+searches:
+  # Presupuesto máximo por producto: <100€. Fuera quedan categorías donde un
+  # "chollo" real no existe a ese precio (Rolex, MacBook, RTX 4070...): si
+  # algo así apareciera a 90€ sería casi con toda seguridad una estafa, no
+  # una ganga. Todo lo de aquí abajo son categorías que sí circulan de
+  # segunda mano por debajo de 100€ y tienen salida de reventa.
+
+  # --- Mandos y accesorios de consola (mucha demanda, precio estable) ---
+  - name: mando_ps5_dualsense
+    keywords: "mando ps5 dualsense"
+    max_price: 60
+
+  - name: mando_xbox_series
+    keywords: "mando xbox series"
+    max_price: 50
+
+  # --- Portátiles/handhelds de consola (mercado de reventa muy activo) ---
+  - name: nintendo_switch_lite
+    keywords: "nintendo switch lite"
+    max_price: 100
+
+  - name: game_boy_advance
+    keywords: "game boy advance"
+    max_price: 80
+
+  - name: psp_playstation_portable
+    keywords: "psp playstation portable"
+    max_price: 60
+
+  - name: nintendo_3ds
+    keywords: "nintendo 3ds"
+    max_price: 70
+
+  # --- Audio y foto compacta ---
+  - name: airpods_2
+    keywords: "airpods 2"
+    max_price: 90
+
+  - name: altavoz_jbl
+    keywords: "altavoz jbl"
+    max_price: 70
+
+  - name: gopro_hero
+    keywords: "gopro hero"
+    max_price: 100
+
+  # --- Relojes accesibles con demanda de coleccionista (no lujo) ---
+  - name: casio_gshock
+    keywords: "casio g-shock"
+    max_price: 100
+
+  # --- Zapatillas de segunda mano en rango accesible ---
+  - name: nike_jordan_segunda_mano
+    keywords: "nike jordan"
+    max_price: 100
+
+  # --- Coleccionables (mercado de reventa muy activo pieza a pieza) ---
+  - name: funko_pop_exclusivo
+    keywords: "funko pop exclusivo"
+    max_price: 60
+
+  - name: carta_pokemon_holo
+    keywords: "carta pokemon holo"
+    max_price: 80
+
+  - name: lego_star_wars_pequeno
+    keywords: "lego star wars"
+    max_price: 100
+
+  - name: vinilo_original
+    keywords: "vinilo original"
+    max_price: 50
+
+  # --- Componentes PC de gama antigua (buena reventa para PCs de entrada) ---
+  - name: gtx_1060
+    keywords: "gtx 1060"
+    max_price: 90
+
+  # --- Búsquedas GENÉRICAS: red más ancha para categorías donde mucha
+  # gente no sabe (o no le importa) escribir la marca/modelo exacto. Más
+  # ruido/falsos positivos a cambio de pescar anuncios mal titulados que
+  # las búsquedas específicas de arriba nunca encontrarían. ---
+  - name: reloj_digital_generico
+    keywords: "reloj digital deportivo"
+    max_price: 60
+
+  - name: reloj_vintage_generico
+    keywords: "reloj vintage cuerda"
+    max_price: 70
+
+  - name: zapatillas_deportivas_genericas
+    keywords: "zapatillas deportivas originales"
+    max_price: 70
