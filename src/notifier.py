@@ -141,11 +141,17 @@ class TelegramNotifier:
         chollos_found: int,
         duration_seconds: float,
         aborted: bool,
+        failures: list[tuple[str, str]] | None = None,
     ) -> None:
         """Mensaje de "sigo vivo" al terminar cada ciclo, haya chollos o no.
 
         Sin esto no hay forma de distinguir desde Telegram "no ha habido
         ningún chollo este ciclo" de "el bot lleva horas sin ejecutarse".
+
+        Cuando hay fallos, se listan por nombre y motivo — en GitHub
+        Actions los logs del job piden iniciar sesión incluso en repos
+        públicos, así que este mensaje es la única forma práctica de ver
+        qué ha fallado y por qué sin entrar a la cuenta de GitHub.
         """
         if aborted:
             status_emoji = "🛑"
@@ -157,12 +163,18 @@ class TelegramNotifier:
             status_emoji = "✅"
             status_line = "Ciclo completado sin errores"
 
+        failures_block = ""
+        if failures:
+            lines = "\n".join(f"  • <b>{escape(name)}</b>: {escape(reason)}" for name, reason in failures)
+            failures_block = f"\n{lines}"
+
         text = (
             f"{status_emoji} <b>{escape(status_line)}</b>\n"
             f"Búsquedas: {searches_total - searches_failed}/{searches_total} ok\n"
             f"Anuncios nuevos: {new_listings}\n"
             f"Chollos detectados: {chollos_found}\n"
             f"Duración: {duration_seconds:.0f}s"
+            f"{failures_block}"
         )
         try:
             asyncio.run(self._send(text))

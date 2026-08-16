@@ -228,20 +228,25 @@ def _search_worker(
     clients: dict[str, WallapopClient | MilanunciosClient | AutoScoutClient],
     notifier: TelegramNotifier | None,
     abort_event: threading.Event,
-) -> tuple[bool, int, int]:
+) -> tuple[bool, int, int, str, str | None]:
     """Ejecuta una búsqueda en su propio hilo, con su propia conexión SQLite
     (sqlite3 no permite compartir una conexión entre hilos). Usa el
     cliente de la plataforma indicada en `search.source`.
 
-    Devuelve (éxito, anuncios_nuevos, chollos_detectados).
+    Devuelve (éxito, anuncios_nuevos, chollos_detectados, nombre_búsqueda,
+    motivo_del_fallo). `motivo_del_fallo` es None si tuvo éxito — se
+    incluye en el heartbeat de Telegram para poder diagnosticar fallos sin
+    depender de los logs de GitHub Actions (que exigen iniciar sesión
+    incluso en repos públicos).
     """
     if abort_event.is_set():
-        return True, 0, 0  # no se ha ni intentado: no cuenta como fallo
+        return True, 0, 0, search.name, None  # no se ha ni intentado: no cuenta como fallo
 
     client = clients.get(search.source)
     if client is None:
-        logger.error("[%s] Plataforma desconocida: %s", search.name, search.source)
-        return False, 0, 0
+        error_msg = f"plataforma desconocida: {search.source}"
+        logger.error("[%s] %s", search.name, error_msg)
+        return False, 0, 0, search.name, error_msg
 
     try:
         with db.connect(config.db_path) as conn:
@@ -254,13 +259,13 @@ def _search_worker(
             new_count,
             chollo_count,
         )
-        return True, new_count, chollo_count
-    except REQUEST_ERRORS:
+        return True, new_count, chollo_count, search.name, None
+    except REQUEST_ERRORS as exc:
         logger.exception("[%s] Error consultando %s", search.name, search.source)
-        return False, 0, 0
-    except Exception:
+        return False, 0, 0, search.name, f"{type(exc).__name__}: {exc}"
+    except Exception as exc:
         logger.exception("[%s] Error inesperado en el ciclo", search.name)
-        return False, 0, 0
+        return False, 0, 0, search.name, f"{type(exc).__name__}: {exc}"
     finally:
         _sleep_politely(config.settings)
 
@@ -288,9 +293,12 @@ def run_cycle(config: AppConfig) -> None:
         "searches_failed": 0,
         "new_listings": 0,
         "chollos_found": 0,
+        "failures": [],  # [(nombre_búsqueda, motivo), ...] para el heartbeat
     }
 
-    def register_result(success: bool, new_count: int, chollo_count: int) -> None:
+    def register_result(
+        success: bool, new_count: int, chollo_count: int, search_name: str, error: str | None
+    ) -> None:
         with state_lock:
             state["new_listings"] += new_count
             state["chollos_found"] += chollo_count
@@ -299,6 +307,7 @@ def run_cycle(config: AppConfig) -> None:
                 return
             state["searches_failed"] += 1
             state["consecutive_failures"] += 1
+            state["failures"].append((search_name, error or "motivo desconocido"))
             if (
                 state["consecutive_failures"] >= config.settings.circuit_breaker_failures
                 and not abort_event.is_set()
@@ -336,4 +345,5 @@ def run_cycle(config: AppConfig) -> None:
             chollos_found=state["chollos_found"],
             duration_seconds=time.monotonic() - started_at,
             aborted=abort_event.is_set(),
+            failures=state["failures"],
         )
