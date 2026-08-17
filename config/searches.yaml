@@ -117,17 +117,21 @@ searches:
     min_year: 2010
     max_km: 200000
 
-  # --- Milanuncios ---
-  # Sin filtros de año/km propios (el sitio no los expone por URL de forma
-  # sencilla); el propio texto de búsqueda + el filtro de adaptación
-  # confirmada hacen la mayor parte del trabajo.
-  - name: milanuncios_furgoneta_adaptada
-    source: milanuncios
-    keywords: "furgoneta adaptada"
-
-  - name: milanuncios_furgoneta_pmr
-    source: milanuncios
-    keywords: "furgoneta PMR discapacitados"
+  # --- Milanuncios: DESACTIVADO ---
+  # Milanuncios bloquea con 403 persistente las peticiones desde las IPs de
+  # GitHub Actions (rangos de datacenter conocidos, protección anti-bot
+  # más agresiva contra ellas que contra una IP residencial normal —
+  # confirmado en producción el 2026-08-16). Desde un PC normal SÍ
+  # funciona. El código (src/milanuncios_client.py) sigue intacto por si
+  # se monta un sistema híbrido más adelante; basta con descomentar estas
+  # dos búsquedas para reactivarlo.
+  # - name: milanuncios_furgoneta_adaptada
+  #   source: milanuncios
+  #   keywords: "furgoneta adaptada"
+  #
+  # - name: milanuncios_furgoneta_pmr
+  #   source: milanuncios
+  #   keywords: "furgoneta PMR discapacitados"
 
   # --- AutoScout24 ---
   # No filtra por texto libre (comprobado): trae TODAS las furgonetas
